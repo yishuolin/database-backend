@@ -42,7 +42,7 @@ class User(db.Model,UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120))
-    def __init__(self, name, password):
+    def __init__(self, username, password):
         self.username = username
         self.password = password
     def save_to_db(self):
@@ -94,6 +94,7 @@ def login():
 @app.route('/userinfo',methods=['GET','POST'])
 def userinfo():
     return success({'username':current_user.username})
+
 @app.route('/register',methods=['GET','POST'])
 def register():
     if request.values.get('username') == None or request.values.get('password') == None:
@@ -104,12 +105,9 @@ def register():
     
     user = User.query.filter_by(username=username).first()
     if user == None:
-        try:
-            user = User(username,password)
-            user.save_to_db()
-            return success({'username':user.username})
-        except:
-            return error('Database Error!')
+        user = User(username,password)
+        user.save_to_db()
+        return success({'username':user.username})
     else:
         return error('Name Exists!')
     
