@@ -93,7 +93,10 @@ def login():
 
 @app.route('/userinfo',methods=['GET','POST'])
 def userinfo():
-    return success({'username':current_user.username})
+    if current_user != None:
+        return success({'username':current_user.username})
+    else:
+        return success({'username':''})
 
 @app.route('/register',methods=['GET','POST'])
 def register():
