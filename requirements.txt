@@ -4,4 +4,4 @@ flask_sqlalchemy
 flask_session
 flask_cors
 flask_login
-psycopg2
+psycopg2-binary

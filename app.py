@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_login import LoginManager,UserMixin,login_user,current_user
+from flask_login import LoginManager,UserMixin,login_user,current_user,login_required,logout_user
 from flask_migrate import Migrate
 import json
 
@@ -70,6 +70,10 @@ def success(data):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(user_id)
+@login_manager.unauthorized_handler
+def unauthorized_handler():
+    return error("Not log in!")
+
 
 # Flask routes
 @app.route('/')
@@ -84,7 +88,7 @@ def login():
         username = request.values.get('username')
         password = request.values.get('password')
     
-    user = User.query.filter_by(username=username,password=password).first()
+    user = User.query.filter(User.username == username, User.password == password).first()
     if user != None:
         login_user(user)
         return success({'username':user.username})
@@ -92,11 +96,15 @@ def login():
         return error('Invalid Credential!')
 
 @app.route('/userinfo',methods=['GET','POST'])
+@login_required
 def userinfo():
-    if current_user != None:
-        return success({'username':current_user.username})
-    else:
-        return success({'username':''})
+    return success({'username':current_user.username})
+
+@app.route('/logout',methods=['GET','POST'])
+@login_required
+def logout():
+    logout_user()
+    return success({'msg':'Logout Finished'})
 
 @app.route('/register',methods=['GET','POST'])
 def register():
