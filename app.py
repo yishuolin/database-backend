@@ -109,7 +109,7 @@ def logout():
 @app.route('/register',methods=['GET','POST'])
 def register():
     if request.values.get('username') == None or request.values.get('password') == None:
-        return error('Empty Filed!')
+        return error('Empty Field!')
     else:
         username = request.values.get('username')
         password = request.values.get('password')
