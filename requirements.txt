@@ -1,7 +1,7 @@
 flask
-flask_migrate
-flask_sqlalchemy
-flask_session
-flask_cors
-flask_login
+flask-migrate
+flask-sqlalchemy
+flask-session
+flask-cors
+flask-login
 psycopg2-binary
