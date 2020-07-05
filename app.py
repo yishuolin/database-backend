@@ -52,7 +52,7 @@ class User(db.Model,UserMixin):
         db.session.delete(self)
         db.session.commit()
     def __repr__(self):
-        return '<UserModel %r>' % (self.name)
+        return '<UserModel %r>' % (self.username)
 
 # Response wrapper
 def error(msg):
