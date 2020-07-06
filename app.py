@@ -76,18 +76,20 @@ def unauthorized_handler():
 
 
 # Flask routes
+# To let cors post work, one should set request content type to text/plain to no send option request
+# every api here will ignore the content-type field to convert it to json
 @app.route('/')
 def index():
     return 'This is Backend.'
 
 @app.route('/login',methods=['GET','POST'])
 def login():
-    if request.values.get('username') == None or request.values.get('password') == None:
+    values = request.get_json(force=True)
+    if values.get('username') == None or values.get('password') == None:
         return error('Empty Filed!')
     else:
-        username = request.values.get('username')
-        password = request.values.get('password')
-    
+        username = values.get('username')
+        password = values.get('password')
     user = User.query.filter(User.username == username, User.password == password).first()
     if user != None:
         login_user(user)
@@ -108,11 +110,12 @@ def logout():
 
 @app.route('/register',methods=['GET','POST'])
 def register():
-    if request.values.get('username') == None or request.values.get('password') == None:
+    values = request.get_json(force=True)
+    if values.get('username') == None or values.get('password') == None:
         return error('Empty Field!')
     else:
-        username = request.values.get('username')
-        password = request.values.get('password')
+        username = values.get('username')
+        password = values.get('password')
     
     user = User.query.filter_by(username=username).first()
     if user == None:
