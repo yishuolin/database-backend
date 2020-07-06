@@ -74,6 +74,12 @@ def load_user(user_id):
 def unauthorized_handler():
     return error("Not log in!")
 
+# Preprocessing request values
+def get_request_value(req):
+    if req.method == 'POST':
+        return req.get_json(force=True)
+    else:
+        return req.values
 
 # Flask routes
 # To let cors post work, one should set request content type to text/plain to no send option request
@@ -84,7 +90,7 @@ def index():
 
 @app.route('/login',methods=['GET','POST'])
 def login():
-    values = request.get_json(force=True)
+    values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
         return error('Empty Filed!')
     else:
@@ -110,7 +116,7 @@ def logout():
 
 @app.route('/register',methods=['GET','POST'])
 def register():
-    values = request.get_json(force=True)
+    values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
         return error('Empty Field!')
     else:
