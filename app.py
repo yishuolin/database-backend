@@ -3,15 +3,21 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_login import LoginManager,UserMixin,login_user,current_user,login_required,logout_user
 from flask_migrate import Migrate
+from flask import g
+from utils import *
+import sqlite3
+import csv
+import pandas as pd
 import json
+
 
 # Create Flask app
 app = Flask(__name__)
 
 # Make the api can be access from anywhere
-CORS(app)
+CORS(app, supports_credentials=True)
 
-# Set secret key for sessions
+# Set secret key for sessionss
 app.config['SECRET_KEY'] = 'secret'
 
 # Make json output prettier
@@ -54,6 +60,41 @@ class User(db.Model,UserMixin):
     def __repr__(self):
         return '<User %r>' % (self.username)
 
+# SQLite
+DATABASE = "test.db"
+
+def get_db():
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is None:
+        db_sqlite = g._database = sqlite3.connect(DATABASE)
+    return db_sqlite
+def init_db():
+    with app.app_context():
+        db_sqlite = get_db()
+        with app.open_resource('create_table.sql', mode='r') as f:
+            db_sqlite.cursor().executescript(f.read())
+        cur = db_sqlite.cursor()
+
+        read = pd.read_csv(r'./data/data.csv')
+        read.to_sql('temp_songs', db_sqlite, if_exists='append', index=False)
+        read = pd.read_csv(r'./data/data_by_genres.csv')
+        read.to_sql('temp_genres', db_sqlite, if_exists='append', index=False)
+        
+        cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
+                    SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_songs;')
+        
+        cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
+                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+
+        cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
+                    SELECT genres as genre, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_genres;')
+
+        cur.execute('DROP TABLE IF EXISTS temp_songs;')
+        cur.execute('DROP TABLE IF EXISTS temp_genre;')
+        db_sqlite.commit()
+
 # Response wrapper
 def error(msg):
     return jsonify({
@@ -86,6 +127,7 @@ def get_request_value(req):
 # every api here will ignore the content-type field to convert it to json
 @app.route('/')
 def index():
+    #cur = get_db().cursor()
     return 'This is Backend.'
 
 @app.route('/login',methods=['GET','POST'])
@@ -114,6 +156,23 @@ def logout():
     logout_user()
     return success({'msg':'Logout Finished'})
 
+
+# for test
+@app.route('/test',methods=['GET','POST'])
+def GET_SONGS():
+    songs = []
+    conn = sqlite3.connect('test.db')
+    cursor = conn.cursor()
+    query = 'SELECT * FROM song_att limit 10'
+    for item in cursor.execute(query):
+        # add key value pair
+        song = {}
+        song.update({'id': item[0], 'energy': item[1], 'danceability': item[2], 'tempo': item[3]})
+        song.update({'valence': item[4], 'liveness': item[5], 'acousticness': item[6]})
+        songs.append(song)
+    conn.close()
+    return jsonify(songs)
+
 @app.route('/register',methods=['GET','POST'])
 def register():
     values = get_request_value(request)
@@ -130,8 +189,37 @@ def register():
         return success({'username':user.username})
     else:
         return error('Name Exists!')
-    
-if __name__ == '__main__':
-    app.run(debug=True,host='0.0.0.0',port=5000,threaded=True)
-    
 
+@app.route('/query1', methods=['GET', 'POST'])
+def query():
+    list = []
+    c = get_db().cursor()
+    for row in c.execute("SELECT songname, duration FROM song_info WHERE artistname LIKE '%Justin Bieber%';"):
+        list.append(row)
+    T = tuple(list)
+    return T[0]
+
+# have error
+@app.route('/get_songs', methods=['GET', 'POST'])
+def get_songs():
+    values = get_request_value(request)
+    if values.get('atmosphere') == None or values.get('bpm') == None:
+        return error('Empty Field!')
+    else:
+        genre = genre_selection(values.get('atmosphere'))
+        para = (genre, values.get('bpm'),)
+        cur = get_db().cursor()
+        return cur.execute('SELECT id FROM song_att \
+            WHERE att.energy = (SELECT energy FROM genre_info \
+            WHERE genre_info.genre = ? \
+            ) AND tempo = ?', para)
+
+@app.teardown_appcontext
+def close_connection(expection):
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is not None:
+        db_sqlite.close()
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True,host='0.0.0.0',port=5000,threaded=True)
