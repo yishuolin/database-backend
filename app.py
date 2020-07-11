@@ -187,15 +187,16 @@ def get_songs():
         
         total_dur = 0
 
-        query = 'SELECT id, ( ABS(energy - ?) + ABS(danceability - ?) + ABS(valence - ?) \
-                + ABS(tempo - ?) + ABS(liveness - ?) + ABS(acousticness - ?)) as dist FROM song_att\
-                ORDER BY dist ASC;'
+        query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
+                , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.danceability - ?) + ABS(t1.valence - ?) \
+                + ABS(t1.tempo - ?) + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
+                song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
         
         para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6],)
 
         song_list = []
-        for item in cur.execute(query, para).fetchall():
-            song_result = cur.execute('SELECT songname, artistname, duration FROM song_info WHERE id = ? ', (item[0], )).fetchone()
+        for song_result in cur.execute(query, para).fetchall():
+            #song_result = cur.execute('SELECT songname, artistname, duration FROM song_info WHERE id = ? ', (item[0], )).fetchone()
             song = {}
             song.update({'songname': song_result[0], 'artistname': song_result[1]})
             song_list.append(song)
@@ -204,6 +205,33 @@ def get_songs():
                 break
 
         return jsonify(song_list)
+
+@app.route('/api/customize_attributes', methods=['GET', 'POST'])
+def customize_attributes():
+    values = get_request_value(request)
+    tempo = float(values.get('tempo'))
+    energy = float(values.get('energy'))
+    liveness = float(values.get('liveness'))
+    duration = int(values.get('duration')) * 60000
+
+    para = (energy, tempo, liveness,)
+    cur = get_db().cursor()
+    query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
+                , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
+                FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+
+    total_duration = 0
+    song_list = []
+    for item in cur.execute(query, para):
+        song = {}
+        song.update({'songname': item[0], 'artistname': item[1]})
+        song_list.append(song)
+        total_duration = total_duration + int(item[2])
+        if total_duration > duration:
+            break
+
+    return jsonify(song_list)
+
 
 @app.route('/api/add_song_to_database', methods=['GET', 'POST'])
 def add_song_to_database():
