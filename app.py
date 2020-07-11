@@ -173,6 +173,7 @@ def register():
     else:
         return error('Name Exists!')
 
+# chooes songs by the chosen atmosphere
 @app.route('/api/get_songs', methods=['GET', 'POST'])
 def get_songs():
     values = get_request_value(request)
@@ -206,6 +207,7 @@ def get_songs():
 
         return jsonify(song_list)
 
+# choose song by specific values of tempo, energy, and liveness
 @app.route('/api/customize_attributes', methods=['GET', 'POST'])
 def customize_attributes():
     values = get_request_value(request)
