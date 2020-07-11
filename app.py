@@ -3,7 +3,12 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_login import LoginManager,UserMixin,login_user,current_user,login_required,logout_user
 from flask_migrate import Migrate
+from flask import g
+from utils import *
 import json
+import sqlite3
+import csv
+import pandas as pd
 
 # Create Flask app
 app = Flask(__name__)
@@ -42,9 +47,11 @@ class User(db.Model,UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120))
+    music_list = db.Column(db.TEXT)
     def __init__(self, username, password):
         self.username = username
         self.password = password
+        self.music_list = ""
     def save_to_db(self):
         db.session.add(self)
         db.session.commit()
@@ -65,6 +72,41 @@ def success(data):
         'error': False,
         'data': data
     })
+
+# building song_att, song_info, genre_info tables
+DATABASE = "test.db"
+
+def get_db():
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is None:
+        db_sqlite = g._database = sqlite3.connect(DATABASE)
+    return db_sqlite
+def init_db():
+    with app.app_context():
+        db_sqlite = get_db()
+        with app.open_resource('create_table.sql', mode='r') as f:
+            db_sqlite.cursor().executescript(f.read())
+        cur = db_sqlite.cursor()
+
+        read = pd.read_csv(r'./data/data.csv')
+        read.to_sql('temp_songs', db_sqlite, if_exists='append', index=False)
+        read = pd.read_csv(r'./data/data_by_genres.csv')
+        read.to_sql('temp_genres', db_sqlite, if_exists='append', index=False)
+        
+        cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
+                    SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_songs;')
+        
+        cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
+                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+
+        cur.execute('INSERT INTO genre_info(genres, energy, danceability, tempo, valence, liveness, acousticness)\
+                    SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_genres;')
+
+        cur.execute('DROP TABLE IF EXISTS temp_songs;')
+        cur.execute('DROP TABLE IF EXISTS temp_genres;')
+        db_sqlite.commit()
 
 # For Login Manager
 @login_manager.user_loader
@@ -130,8 +172,72 @@ def register():
         return success({'username':user.username})
     else:
         return error('Name Exists!')
-    
-if __name__ == '__main__':
-    app.run(debug=True,host='0.0.0.0',port=5000,threaded=True)
-    
 
+@app.route('/api/get_songs', methods=['GET', 'POST'])
+def get_songs():
+    values = get_request_value(request)
+    if values.get('atmosphere') == None or values.get('duration') == None:
+        return error('Empty Field!')
+    else:
+        genre = genre_selection(values.get('atmosphere'))
+        duration = int(values.get('duration')) * 60000
+        cur = get_db().cursor()
+        para = (genre,)
+        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?;', para).fetchone()
+        
+        total_dur = 0
+
+        query = 'SELECT id, ( ABS(energy - ?) + ABS(danceability - ?) + ABS(valence - ?) \
+                + ABS(tempo - ?) + ABS(liveness - ?) + ABS(acousticness - ?)) as dist FROM song_att\
+                ORDER BY dist ASC;'
+        
+        para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6],)
+
+        song_list = []
+        for item in cur.execute(query, para).fetchall():
+            song_result = cur.execute('SELECT songname, artistname, duration FROM song_info WHERE id = ? ', (item[0], )).fetchone()
+            song = {}
+            song.update({'songname': song_result[0], 'artistname': song_result[1]})
+            song_list.append(song)
+            total_dur = total_dur + song_result[2]
+            if total_dur > duration:
+                break
+
+        return jsonify(song_list)
+
+@app.route('/api/add_song_to_database', methods=['GET', 'POST'])
+def add_song_to_database():
+    values = get_request_value(request)
+    songname = values.get('songname')
+    artistname = values.get('artistname')
+    atmos = values.get('atmosphere')
+    duration = 10000 # example
+
+    genre = genre_selection(atmos)
+
+    db_sqlite = get_db()
+    cur = db_sqlite.cursor()
+    genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?', (genre,)).fetchone()
+    new_id = id_generator()
+    while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+        new_id = id_generator()
+    
+    para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
+            genre_standard[5], genre_standard[6],)
+    cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
+
+    para = (new_id, songname, artistname, duration,)
+    cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
+    db_sqlite.commit()
+
+    return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
+
+@app.teardown_appcontext
+def close_connection(expection):
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is not None:
+        db_sqlite.close()   
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True,host='0.0.0.0',port=5000,threaded=True)
