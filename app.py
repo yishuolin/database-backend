@@ -48,9 +48,11 @@ class User(db.Model,UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120))
+    saved = db.Column(db.String(2000))
     def __init__(self, username, password):
         self.username = username
         self.password = password
+        self.saved = '[]'
     def save_to_db(self):
         db.session.add(self)
         db.session.commit()
@@ -198,7 +200,10 @@ def searchByArtist():
     else:
         list = []
         c = get_db().cursor()
-        query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
+        if values.get('precise') == '1':
+            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%'{}'%';".format(values.get('artist'))
+        else:
+            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
         for row in c.execute(query):
             song = {}
             song.update({'songname': row[0], 'duration': row[1]})
@@ -250,6 +255,31 @@ def addSong():
             song.update({'id': row[0], 'songname': row[1], 'artistname': row[2]})
             list.append(song)
         return jsonify(list)
+
+@app.route('/save', methods=['GET', 'POST'])
+def saveSong():
+    values = get_request_value(request)
+    list = []
+    c = get_db().cursor()
+    songid = values.get('song')
+    username = values.get('user')
+    query = "SELECT saved FROM users WHERE username = '{}';".format(username)
+    for row in c.execute(query):
+        saved_a = row[0]
+        break
+    saved_b = saved_a.strip(']')
+    saved_b = saved_b + ", '{}'".format(songid) + "]"
+    query = 'UPDATE users SET saved = "{saved}" WHERE username = "{username}";'.format(saved = saved_b, username = username)
+    c.execute(query)
+    get_db().commit()
+
+    query = "SELECT username, saved FROM users WHERE username = '{}'".format(username)
+    for row in c.execute(query):
+        user = {}
+        user.update({'username': row[0], 'saved': row[1]})
+        list.append(user)
+
+    return jsonify(list)
 
 
 @app.teardown_appcontext
