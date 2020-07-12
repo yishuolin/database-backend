@@ -379,14 +379,14 @@ def saveSong():
     values = get_request_value(request)
     list = []
     c = get_db().cursor()
-    songid = values.get('song')
+    songlist = values.get('songlist')
     username = values.get('user')
     query = "SELECT saved FROM users WHERE username = '{}';".format(username)
     for row in c.execute(query):
         saved_a = row[0]
         break
     saved_b = saved_a.strip(']')
-    saved_b = saved_b + ", '{}'".format(songid) + "]"
+    saved_b = saved_b + ", '{}'".format(songlist) + "]"
     query = 'UPDATE users SET saved = "{saved}" WHERE username = "{username}";'.format(saved = saved_b, username = username)
     c.execute(query)
     get_db().commit()
@@ -398,6 +398,18 @@ def saveSong():
         list.append(user)
 
     return jsonify(list)
+
+@app.route('/api/playSaved', methods=['GET', 'POST'])
+def playSavedSong():
+    values = get_request_value(request)
+    c = get_db().cursor()
+    username = values.get('user')
+    query = "SELECT saved FROM users WHERE username = '{}';".format(username)
+    for row in c.execute(query):
+        saved = row[0]
+        break
+
+    return saved
 
 
 @app.teardown_appcontext
