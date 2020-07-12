@@ -167,7 +167,7 @@ def index():
     #cur = get_db().cursor()
     return 'This is Backend.'
 
-@app.route('/login',methods=['GET','POST'])
+@app.route('/api/login',methods=['GET','POST'])
 def login():
     values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
@@ -182,12 +182,12 @@ def login():
     else:
         return error('Invalid Credential!')
 
-@app.route('/userinfo',methods=['GET','POST'])
+@app.route('/api/userinfo',methods=['GET','POST'])
 @login_required
 def userinfo():
     return success({'username':current_user.username})
 
-@app.route('/logout',methods=['GET','POST'])
+@app.route('/api/logout',methods=['GET','POST'])
 @login_required
 def logout():
     logout_user()
@@ -195,7 +195,7 @@ def logout():
 
 
 # for test
-@app.route('/test',methods=['GET','POST'])
+@app.route('/api/test',methods=['GET','POST'])
 def GET_SONGS():
     songs = []
     conn = sqlite3.connect('test.db')
@@ -210,7 +210,7 @@ def GET_SONGS():
     conn.close()
     return jsonify(songs)
 
-@app.route('/register',methods=['GET','POST'])
+@app.route('/api/register',methods=['GET','POST'])
 def register():
     values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
