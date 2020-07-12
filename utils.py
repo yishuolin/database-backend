@@ -1,13 +1,14 @@
 import random
 def genre_selection(atmos):
     switcher={
-        'jogging': 'folk-pop',
+        'jogging': 'edm',
         'working': 'focus',
-        'party': 'edm',
+        'party': 'techno',
         'workout': 'lo-fi',
         'dinner': 'dinner jazz',
         'morning': 'country pop',
-        'chill': 'chill guitar'
+        'chill': 'chill guitar',
+        'house':'house'
     }
     return switcher.get(atmos, 'Invalid')
 

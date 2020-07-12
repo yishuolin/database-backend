@@ -244,7 +244,7 @@ def get_songs():
 
         query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
                 , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.danceability - ?) + ABS(t1.valence - ?) \
-                + ABS(t1.tempo - ?) + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
+                + ABS(t1.tempo - ?) / 250.0 + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
                 song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
         
         para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6],)
@@ -276,7 +276,7 @@ def customize_attributes():
         para = (energy, tempo, liveness,)
         cur = get_db().cursor()
         query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
-                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
+                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) / 250.0 + ABS(t1.liveness - ?)) as dist \
                     FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
 
         total_duration = 0
@@ -295,15 +295,13 @@ def customize_attributes():
 @app.route('/api/add_song_to_database', methods=['GET', 'POST'])
 def add_song_to_database():
     values = get_request_value(request)
-    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
+    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None or values.get('duration') == None:
         return error('Please fill in all the information correctly')
-    elif values.get('atmosphere') == 'other':
-        return success({'msg':'ignore'})
     else : 
         songname = values.get('songname')
         artistname = values.get('artistname')
         atmos = values.get('atmosphere')
-        duration = 10000 # example
+        duration = values.get('duration') # example
 
         genre = genre_selection(atmos)
         if genre == 'Invalid':
