@@ -212,7 +212,7 @@ def get_songs():
 def customize_attributes():
     values = get_request_value(request)
     if values.get('tempo') == None or values.get('energy') == None or values.get('liveness') == None:
-        return error({Empty field!})
+        return error({'Empty field!'})
     else :
         tempo = float(values.get('tempo'))
         energy = float(values.get('energy'))
@@ -242,7 +242,7 @@ def customize_attributes():
 def add_song_to_database():
     values = get_request_value(request)
     if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
-        return error({'Please fill in all the information correctly'})
+        return error('Please fill in all the information correctly')
     else : 
         songname = values.get('songname')
         artistname = values.get('artistname')
