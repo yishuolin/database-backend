@@ -243,6 +243,8 @@ def add_song_to_database():
     values = get_request_value(request)
     if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
         return error('Please fill in all the information correctly')
+    elif values.get('atmosphere') == 'other':
+        return success({'msg':'ignore'})
     else : 
         songname = values.get('songname')
         artistname = values.get('artistname')
@@ -259,10 +261,6 @@ def add_song_to_database():
             return error('The song has already been in the database.')
         else: 
             genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?', (genre,)).fetchone()
-            '''
-            if genre_standard == None :
-                cur.execute('')
-            '''
             new_id = id_generator()
             while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
                 new_id = id_generator()
