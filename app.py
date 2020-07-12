@@ -337,12 +337,12 @@ def searchByArtist():
         list = []
         c = get_db().cursor()
         if values.get('mode') == 'precise':
-            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%\'{}\'%';".format(values.get('artist'))
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'{}\'%' LIMIT 50;".format(values.get('artist'))
         else:
-            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%{}%' LIMIT 50;".format(values.get('artist'))
         for row in c.execute(query):
             song = {}
-            song.update({'songname': row[0], 'duration': row[1]})
+            song.update({'songname': row[0], 'artistname': row[1]})
             list.append(song)
         return jsonify(list)
 
