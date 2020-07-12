@@ -211,56 +211,62 @@ def get_songs():
 @app.route('/api/customize_attributes', methods=['GET', 'POST'])
 def customize_attributes():
     values = get_request_value(request)
-    tempo = float(values.get('tempo'))
-    energy = float(values.get('energy'))
-    liveness = float(values.get('liveness'))
-    duration = int(values.get('duration')) * 60000
+    if values.get('tempo') == None or values.get('energy') == None or values.get('liveness') == None:
+        return error({Empty field!})
+    else :
+        tempo = float(values.get('tempo'))
+        energy = float(values.get('energy'))
+        liveness = float(values.get('liveness'))
+        duration = int(values.get('duration')) * 60000
 
-    para = (energy, tempo, liveness,)
-    cur = get_db().cursor()
-    query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
-                , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
-                FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+        para = (energy, tempo, liveness,)
+        cur = get_db().cursor()
+        query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
+                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
+                    FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
 
-    total_duration = 0
-    song_list = []
-    for item in cur.execute(query, para):
-        song = {}
-        song.update({'songname': item[0], 'artistname': item[1]})
-        song_list.append(song)
-        total_duration = total_duration + int(item[2])
-        if total_duration > duration:
-            break
+        total_duration = 0
+        song_list = []
+        for item in cur.execute(query, para):
+            song = {}
+            song.update({'songname': item[0], 'artistname': item[1]})
+            song_list.append(song)
+            total_duration = total_duration + int(item[2])
+            if total_duration > duration:
+                break
 
-    return jsonify(song_list)
+        return jsonify(song_list)
 
 
 @app.route('/api/add_song_to_database', methods=['GET', 'POST'])
 def add_song_to_database():
     values = get_request_value(request)
-    songname = values.get('songname')
-    artistname = values.get('artistname')
-    atmos = values.get('atmosphere')
-    duration = 10000 # example
+    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
+        return error({'Please fill in all the information correctly'})
+    else : 
+        songname = values.get('songname')
+        artistname = values.get('artistname')
+        atmos = values.get('atmosphere')
+        duration = 10000 # example
 
-    genre = genre_selection(atmos)
+        genre = genre_selection(atmos)
 
-    db_sqlite = get_db()
-    cur = db_sqlite.cursor()
-    genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?', (genre,)).fetchone()
-    new_id = id_generator()
-    while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+        db_sqlite = get_db()
+        cur = db_sqlite.cursor()
+        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?', (genre,)).fetchone()
         new_id = id_generator()
-    
-    para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
-            genre_standard[5], genre_standard[6],)
-    cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
+        while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+            new_id = id_generator()
+        
+        para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
+                genre_standard[5], genre_standard[6],)
+        cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
 
-    para = (new_id, songname, artistname, duration,)
-    cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
-    db_sqlite.commit()
+        para = (new_id, songname, artistname, duration,)
+        cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
+        db_sqlite.commit()
 
-    return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
+        return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
 
 @app.teardown_appcontext
 def close_connection(expection):
