@@ -328,7 +328,7 @@ def add_song_to_database():
             db_sqlite.commit()
 
             return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
-@app.route('/search', methods=['GET', 'POST'])
+@app.route('/api/search', methods=['GET', 'POST'])
 def searchByArtist():
     values = get_request_value(request)
     if values.get('artist') == None:
@@ -346,7 +346,7 @@ def searchByArtist():
             list.append(song)
         return jsonify(list)
 
-@app.route('/add', methods=['GET', 'POST'])
+@app.route('/api/add', methods=['GET', 'POST'])
 def addSong():
     values = get_request_value(request)
     if values.get('song') == None:
@@ -374,7 +374,7 @@ def addSong():
             list.append(song)
         return jsonify(list)
 
-@app.route('/save', methods=['GET', 'POST'])
+@app.route('/api/save', methods=['GET', 'POST'])
 def saveSong():
     values = get_request_value(request)
     list = []
