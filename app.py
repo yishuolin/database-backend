@@ -84,10 +84,10 @@ def init_db():
         
         cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
                     SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
-                    FROM temp_songs;')
+                    FROM temp_songs WHERE year >= 1980;')
         
         cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
-                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+                    SELECT id, name, artists, duration_ms FROM temp_songs WHERE year >= 1980;')
 
         cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
                     SELECT genres as genre, energy, danceability, tempo, valence, liveness, acousticness \
