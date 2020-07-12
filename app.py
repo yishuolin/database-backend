@@ -100,7 +100,7 @@ def init_db():
         cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
                     SELECT id, name, artists, duration_ms FROM temp_songs;')
 
-        cur.execute('INSERT INTO genre_info(genres, energy, danceability, tempo, valence, liveness, acousticness)\
+        cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
                     SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
                     FROM temp_genres;')
 
@@ -184,7 +184,7 @@ def get_songs():
         duration = int(values.get('duration')) * 60000
         cur = get_db().cursor()
         para = (genre,)
-        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?;', para).fetchone()
+        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?;', para).fetchone()
         
         total_dur = 0
 
@@ -211,8 +211,8 @@ def get_songs():
 @app.route('/api/customize_attributes', methods=['GET', 'POST'])
 def customize_attributes():
     values = get_request_value(request)
-    if values.get('tempo') == None or values.get('energy') == None or values.get('liveness') == None:
-        return error({'Empty field!'})
+    if values.get('tempo') == None or values.get('energy') == None or values.get('liveness') == None or values.get('duration') == None:
+        return error('Empty field!')
     else :
         tempo = float(values.get('tempo'))
         energy = float(values.get('energy'))
@@ -250,23 +250,32 @@ def add_song_to_database():
         duration = 10000 # example
 
         genre = genre_selection(atmos)
+        if genre == 'Invalid':
+            genre = atmos
 
         db_sqlite = get_db()
         cur = db_sqlite.cursor()
-        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genres = ?', (genre,)).fetchone()
-        new_id = id_generator()
-        while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+        if cur.execute('SELECT * FROM song_info WHERE songname = ?', (songname,)).fetchone() != None:
+            return error('The song has already been in the database.')
+        else: 
+            genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?', (genre,)).fetchone()
+            '''
+            if genre_standard == None :
+                cur.execute('')
+            '''
             new_id = id_generator()
-        
-        para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
-                genre_standard[5], genre_standard[6],)
-        cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
+            while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+                new_id = id_generator()
+            
+            para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
+                    genre_standard[5], genre_standard[6],)
+            cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
 
-        para = (new_id, songname, artistname, duration,)
-        cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
-        db_sqlite.commit()
+            para = (new_id, songname, artistname, duration,)
+            cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
+            db_sqlite.commit()
 
-        return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
+            return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
 
 @app.teardown_appcontext
 def close_connection(expection):

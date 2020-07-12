@@ -54,7 +54,7 @@ CREATE TABLE song_att(
 );
 
 CREATE TABLE genre_info(
-    genres PRIMARY KEY,
+    genre PRIMARY KEY,
     energy REAL,
     danceability REAL,
     tempo  INTEGER,
