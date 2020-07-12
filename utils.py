@@ -3,12 +3,10 @@ def genre_selection(atmos):
     switcher={
         'jogging': 'edm',
         'working': 'focus',
-        'party': 'techno',
-        'workout': 'lo-fi',
-        'dinner': 'dinner jazz',
-        'morning': 'country pop',
-        'chill': 'chill guitar',
-        'house':'house'
+        'party': 'panamanian rock',
+        'workout': 'electronic rock',
+        'dinner': 'classic soul',
+        'morning': 'bossa nova'
     }
     return switcher.get(atmos, 'Invalid')
 
