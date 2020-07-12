@@ -9,6 +9,7 @@ import json
 import sqlite3
 import csv
 import pandas as pd
+import time
 
 # Create Flask app
 app = Flask(__name__)
@@ -16,7 +17,7 @@ app = Flask(__name__)
 # Make the api can be access from anywhere
 CORS(app, supports_credentials=True)
 
-# Set secret key for sessions
+# Set secret key for sessionss
 app.config['SECRET_KEY'] = 'secret'
 
 # Make json output prettier
@@ -47,11 +48,11 @@ class User(db.Model,UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120))
-    music_list = db.Column(db.TEXT)
+    saved = db.Column(db.String(2000))
     def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.music_list = ""
+        self.saved = '[]'
     def save_to_db(self):
         db.session.add(self)
         db.session.commit()
@@ -60,6 +61,41 @@ class User(db.Model,UserMixin):
         db.session.commit()
     def __repr__(self):
         return '<User %r>' % (self.username)
+
+# SQLite
+DATABASE = "test.db"
+
+def get_db():
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is None:
+        db_sqlite = g._database = sqlite3.connect(DATABASE)
+    return db_sqlite
+def init_db():
+    with app.app_context():
+        db_sqlite = get_db()
+        with app.open_resource('create_table.sql', mode='r') as f:
+            db_sqlite.cursor().executescript(f.read())
+        cur = db_sqlite.cursor()
+
+        read = pd.read_csv(r'./data/data.csv')
+        read.to_sql('temp_songs', db_sqlite, if_exists='append', index=False)
+        read = pd.read_csv(r'./data/data_by_genres.csv')
+        read.to_sql('temp_genres', db_sqlite, if_exists='append', index=False)
+        
+        cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
+                    SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_songs;')
+        
+        cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
+                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+
+        cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
+                    SELECT genres as genre, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_genres;')
+
+        cur.execute('DROP TABLE IF EXISTS temp_songs;')
+        cur.execute('DROP TABLE IF EXISTS temp_genre;')
+        db_sqlite.commit()
 
 # Response wrapper
 def error(msg):
@@ -126,14 +162,15 @@ def get_request_value(req):
 # Flask routes
 # To let cors post work, one should set request content type to text/plain to no send option request
 # every api here will ignore the content-type field to convert it to json
-@app.route('/api')
+@app.route('/')
 def index():
+    #cur = get_db().cursor()
     return 'This is Backend.'
 
-@app.route('/api/login',methods=['GET','POST'])
+@app.route('/login',methods=['GET','POST'])
 def login():
     values = get_request_value(request)
-    if not values.get('username') or not values.get('password'):
+    if values.get('username') == None or values.get('password') == None:
         return error('Empty Filed!')
     else:
         username = values.get('username')
@@ -145,21 +182,38 @@ def login():
     else:
         return error('Invalid Credential!')
 
-@app.route('/api/userinfo',methods=['GET','POST'])
+@app.route('/userinfo',methods=['GET','POST'])
 @login_required
 def userinfo():
     return success({'username':current_user.username})
 
-@app.route('/api/logout',methods=['GET','POST'])
+@app.route('/logout',methods=['GET','POST'])
 @login_required
 def logout():
     logout_user()
     return success({'msg':'Logout Finished'})
 
-@app.route('/api/register',methods=['GET','POST'])
+
+# for test
+@app.route('/test',methods=['GET','POST'])
+def GET_SONGS():
+    songs = []
+    conn = sqlite3.connect('test.db')
+    cursor = conn.cursor()
+    query = 'SELECT * FROM song_att limit 10'
+    for item in cursor.execute(query):
+        # add key value pair
+        song = {}
+        song.update({'id': item[0], 'energy': item[1], 'danceability': item[2], 'tempo': item[3]})
+        song.update({'valence': item[4], 'liveness': item[5], 'acousticness': item[6]})
+        songs.append(song)
+    conn.close()
+    return jsonify(songs)
+
+@app.route('/register',methods=['GET','POST'])
 def register():
     values = get_request_value(request)
-    if not values.get('username') or not values.get('password'):
+    if values.get('username') == None or values.get('password') == None:
         return error('Empty Field!')
     else:
         username = values.get('username')
@@ -172,11 +226,11 @@ def register():
         return success({'username':user.username})
     else:
         return error('Name Exists!')
-
 # chooes songs by the chosen atmosphere
 @app.route('/api/get_songs', methods=['GET', 'POST'])
 def get_songs():
     values = get_request_value(request)
+    print(values)
     if values.get('atmosphere') == None or values.get('duration') == None:
         return error('Empty Field!')
     else:
@@ -274,6 +328,77 @@ def add_song_to_database():
             db_sqlite.commit()
 
             return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
+@app.route('/search', methods=['GET', 'POST'])
+def searchByArtist():
+    values = get_request_value(request)
+    if values.get('artist') == None:
+        return error('Empty Field!')
+    else:
+        list = []
+        c = get_db().cursor()
+        if values.get('mode') == 'precise':
+            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%\'{}\'%';".format(values.get('artist'))
+        else:
+            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
+        for row in c.execute(query):
+            song = {}
+            song.update({'songname': row[0], 'duration': row[1]})
+            list.append(song)
+        return jsonify(list)
+
+@app.route('/add', methods=['GET', 'POST'])
+def addSong():
+    values = get_request_value(request)
+    if values.get('song') == None:
+        return error('Empty Field!')
+    else:
+        list = []
+        song = values.get('song')
+        
+        id = str(time.time())
+
+        c = get_db().cursor()
+        
+        if values.get('artist') != None:
+            artist = values.get('artist')
+            c.execute("INSERT INTO song_info(id, songname, artistname) VALUES ('{id}', '{song}', '{artist}')".format(id = id, song = song, artist = artist))
+        else:
+            c.execute("INSERT INTO song_info(id, songname) VALUES ('{id}', '{song}')".format(id = id, song = song))
+
+        get_db().commit()
+
+        query = "SELECT id, songname, artistname FROM song_info WHERE id = {};".format(id)
+        for row in c.execute(query):
+            song = {}
+            song.update({'id': row[0], 'songname': row[1], 'artistname': row[2]})
+            list.append(song)
+        return jsonify(list)
+
+@app.route('/save', methods=['GET', 'POST'])
+def saveSong():
+    values = get_request_value(request)
+    list = []
+    c = get_db().cursor()
+    songid = values.get('song')
+    username = values.get('user')
+    query = "SELECT saved FROM users WHERE username = '{}';".format(username)
+    for row in c.execute(query):
+        saved_a = row[0]
+        break
+    saved_b = saved_a.strip(']')
+    saved_b = saved_b + ", '{}'".format(songid) + "]"
+    query = 'UPDATE users SET saved = "{saved}" WHERE username = "{username}";'.format(saved = saved_b, username = username)
+    c.execute(query)
+    get_db().commit()
+
+    query = "SELECT username, saved FROM users WHERE username = '{}'".format(username)
+    for row in c.execute(query):
+        user = {}
+        user.update({'username': row[0], 'saved': row[1]})
+        list.append(user)
+
+    return jsonify(list)
+
 
 @app.teardown_appcontext
 def close_connection(expection):
