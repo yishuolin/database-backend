@@ -200,8 +200,8 @@ def searchByArtist():
     else:
         list = []
         c = get_db().cursor()
-        if values.get('precise') == '1':
-            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%'{}'%';".format(values.get('artist'))
+        if values.get('mode') == 'precise':
+            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%\'{}\'%';".format(values.get('artist'))
         else:
             query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
         for row in c.execute(query):
