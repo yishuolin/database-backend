@@ -5,10 +5,10 @@ from flask_login import LoginManager,UserMixin,login_user,current_user,login_req
 from flask_migrate import Migrate
 from flask import g
 from utils import *
+import json
 import sqlite3
 import csv
 import pandas as pd
-import json
 import time
 
 # Create Flask app
@@ -84,10 +84,10 @@ def init_db():
         
         cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
                     SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
-                    FROM temp_songs;')
+                    FROM temp_songs WHERE year >= 1980;')
         
         cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
-                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+                    SELECT id, name, artists, duration_ms FROM temp_songs WHERE year >= 1980;')
 
         cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
                     SELECT genres as genre, energy, danceability, tempo, valence, liveness, acousticness \
@@ -108,6 +108,41 @@ def success(data):
         'error': False,
         'data': data
     })
+
+# building song_att, song_info, genre_info tables
+DATABASE = "test.db"
+
+def get_db():
+    db_sqlite = getattr(g, '_database', None)
+    if db_sqlite is None:
+        db_sqlite = g._database = sqlite3.connect(DATABASE)
+    return db_sqlite
+def init_db():
+    with app.app_context():
+        db_sqlite = get_db()
+        with app.open_resource('create_table.sql', mode='r') as f:
+            db_sqlite.cursor().executescript(f.read())
+        cur = db_sqlite.cursor()
+
+        read = pd.read_csv(r'./data/data.csv')
+        read.to_sql('temp_songs', db_sqlite, if_exists='append', index=False)
+        read = pd.read_csv(r'./data/data_by_genres.csv')
+        read.to_sql('temp_genres', db_sqlite, if_exists='append', index=False)
+        
+        cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
+                    SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_songs;')
+        
+        cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
+                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+
+        cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
+                    SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
+                    FROM temp_genres;')
+
+        cur.execute('DROP TABLE IF EXISTS temp_songs;')
+        cur.execute('DROP TABLE IF EXISTS temp_genres;')
+        db_sqlite.commit()
 
 # For Login Manager
 @login_manager.user_loader
@@ -132,7 +167,7 @@ def index():
     #cur = get_db().cursor()
     return 'This is Backend.'
 
-@app.route('/login',methods=['GET','POST'])
+@app.route('/api/login',methods=['GET','POST'])
 def login():
     values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
@@ -147,12 +182,12 @@ def login():
     else:
         return error('Invalid Credential!')
 
-@app.route('/userinfo',methods=['GET','POST'])
+@app.route('/api/userinfo',methods=['GET','POST'])
 @login_required
 def userinfo():
     return success({'username':current_user.username})
 
-@app.route('/logout',methods=['GET','POST'])
+@app.route('/api/logout',methods=['GET','POST'])
 @login_required
 def logout():
     logout_user()
@@ -160,7 +195,7 @@ def logout():
 
 
 # for test
-@app.route('/test',methods=['GET','POST'])
+@app.route('/api/test',methods=['GET','POST'])
 def GET_SONGS():
     songs = []
     conn = sqlite3.connect('test.db')
@@ -175,7 +210,7 @@ def GET_SONGS():
     conn.close()
     return jsonify(songs)
 
-@app.route('/register',methods=['GET','POST'])
+@app.route('/api/register',methods=['GET','POST'])
 def register():
     values = get_request_value(request)
     if values.get('username') == None or values.get('password') == None:
@@ -191,8 +226,109 @@ def register():
         return success({'username':user.username})
     else:
         return error('Name Exists!')
+# chooes songs by the chosen atmosphere
+@app.route('/api/get_songs', methods=['GET', 'POST'])
+def get_songs():
+    values = get_request_value(request)
+    print(values)
+    if values.get('atmosphere') == None or values.get('duration') == None:
+        return error('Empty Field!')
+    else:
+        genre = genre_selection(values.get('atmosphere'))
+        duration = int(values.get('duration')) * 60000
+        cur = get_db().cursor()
+        para = (genre,)
+        genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?;', para).fetchone()
+        
+        total_dur = 0
 
-@app.route('/search', methods=['GET', 'POST'])
+        query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
+                , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.danceability - ?) + ABS(t1.valence - ?) \
+                + ABS(t1.tempo - ?) + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
+                song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+        
+        para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6],)
+
+        song_list = []
+        for song_result in cur.execute(query, para).fetchall():
+            #song_result = cur.execute('SELECT songname, artistname, duration FROM song_info WHERE id = ? ', (item[0], )).fetchone()
+            song = {}
+            song.update({'songname': song_result[0], 'artistname': song_result[1]})
+            song_list.append(song)
+            total_dur = total_dur + song_result[2]
+            if total_dur > duration:
+                break
+
+        return jsonify(song_list)
+
+# choose song by specific values of tempo, energy, and liveness
+@app.route('/api/customize_attributes', methods=['GET', 'POST'])
+def customize_attributes():
+    values = get_request_value(request)
+    if values.get('tempo') == None or values.get('energy') == None or values.get('liveness') == None or values.get('duration') == None:
+        return error('Empty field!')
+    else :
+        tempo = float(values.get('tempo'))
+        energy = float(values.get('energy'))
+        liveness = float(values.get('liveness'))
+        duration = int(values.get('duration')) * 60000
+
+        para = (energy, tempo, liveness,)
+        cur = get_db().cursor()
+        query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
+                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
+                    FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+
+        total_duration = 0
+        song_list = []
+        for item in cur.execute(query, para):
+            song = {}
+            song.update({'songname': item[0], 'artistname': item[1]})
+            song_list.append(song)
+            total_duration = total_duration + int(item[2])
+            if total_duration > duration:
+                break
+
+        return jsonify(song_list)
+
+
+@app.route('/api/add_song_to_database', methods=['GET', 'POST'])
+def add_song_to_database():
+    values = get_request_value(request)
+    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
+        return error('Please fill in all the information correctly')
+    elif values.get('atmosphere') == 'other':
+        return success({'msg':'ignore'})
+    else : 
+        songname = values.get('songname')
+        artistname = values.get('artistname')
+        atmos = values.get('atmosphere')
+        duration = 10000 # example
+
+        genre = genre_selection(atmos)
+        if genre == 'Invalid':
+            genre = atmos
+
+        db_sqlite = get_db()
+        cur = db_sqlite.cursor()
+        if cur.execute('SELECT * FROM song_info WHERE songname = ?', (songname,)).fetchone() != None:
+            return error('The song has already been in the database.')
+        else: 
+            genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?', (genre,)).fetchone()
+            new_id = id_generator()
+            while cur.execute('SELECT * FROM song_info WHERE id = ?', (new_id,)).fetchone() != None :
+                new_id = id_generator()
+            
+            para = (new_id, genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], \
+                    genre_standard[5], genre_standard[6],)
+            cur.execute('INSERT INTO song_att VALUES(?, ?, ?, ?, ?, ?, ?)', para)
+
+            para = (new_id, songname, artistname, duration,)
+            cur.execute('INSERT INTO song_info VALUES(?, ?, ?, ?)', para)
+            db_sqlite.commit()
+
+            return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
+@app.route('/api/search', methods=['GET', 'POST'])
 def searchByArtist():
     values = get_request_value(request)
     if values.get('artist') == None:
@@ -201,34 +337,16 @@ def searchByArtist():
         list = []
         c = get_db().cursor()
         if values.get('mode') == 'precise':
-            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%\'{}\'%';".format(values.get('artist'))
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'{}\'%' LIMIT 50;".format(values.get('artist'))
         else:
-            query = "SELECT songname, duration FROM song_info WHERE artistname LIKE '%{}%';".format(values.get('artist'))
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%{}%' LIMIT 50;".format(values.get('artist'))
         for row in c.execute(query):
             song = {}
-            song.update({'songname': row[0], 'duration': row[1]})
+            song.update({'songname': row[0], 'artistname': row[1]})
             list.append(song)
         return jsonify(list)
 
-@app.route('/atmos', methods=['GET', 'POST'])
-def searchByGenre():
-    values = get_request_value(request)
-    if values.get('atmos') == None:
-        return error('Empty Field!')
-    else:
-        list = []
-        c = get_db().cursor()
-        if(values.get('atmos') == 'party'):
-            keyword = 'danceability'
-            query = "SELECT songname, artistname, {kwd} FROM song_att, song_info WHERE song_att.id = song_info.id ORDER BY {kwd} DESC LIMIT 10;".format(kwd = keyword)
-
-        for row in c.execute(query):
-            song = {}
-            song.update({'songname': row[0], 'artistname': row[1], keyword: row[2]})
-            list.append(song)
-        return jsonify(list)
-
-@app.route('/add', methods=['GET', 'POST'])
+@app.route('/api/add', methods=['GET', 'POST'])
 def addSong():
     values = get_request_value(request)
     if values.get('song') == None:
@@ -256,19 +374,19 @@ def addSong():
             list.append(song)
         return jsonify(list)
 
-@app.route('/save', methods=['GET', 'POST'])
+@app.route('/api/save', methods=['GET', 'POST'])
 def saveSong():
     values = get_request_value(request)
     list = []
     c = get_db().cursor()
-    songid = values.get('song')
+    songlist = values.get('songlist')
     username = values.get('user')
     query = "SELECT saved FROM users WHERE username = '{}';".format(username)
     for row in c.execute(query):
         saved_a = row[0]
         break
     saved_b = saved_a.strip(']')
-    saved_b = saved_b + ", '{}'".format(songid) + "]"
+    saved_b = saved_b + ", '{}'".format(songlist) + "]"
     query = 'UPDATE users SET saved = "{saved}" WHERE username = "{username}";'.format(saved = saved_b, username = username)
     c.execute(query)
     get_db().commit()
@@ -281,12 +399,24 @@ def saveSong():
 
     return jsonify(list)
 
+@app.route('/api/playSaved', methods=['GET', 'POST'])
+def playSavedSong():
+    values = get_request_value(request)
+    c = get_db().cursor()
+    username = values.get('user')
+    query = "SELECT saved FROM users WHERE username = '{}';".format(username)
+    for row in c.execute(query):
+        saved = row[0]
+        break
+
+    return saved
+
 
 @app.teardown_appcontext
 def close_connection(expection):
     db_sqlite = getattr(g, '_database', None)
     if db_sqlite is not None:
-        db_sqlite.close()
+        db_sqlite.close()   
 
 if __name__ == '__main__':
     init_db()

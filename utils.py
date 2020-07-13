@@ -1,3 +1,4 @@
+import random
 def genre_selection(atmos):
     switcher={
         'jogging': 'folk-pop',
@@ -8,4 +9,8 @@ def genre_selection(atmos):
         'morning': 'country pop',
         'chill': 'chill guitar'
     }
-    return switcher.get(atmos)
+    return switcher.get(atmos, 'Invalid')
+
+def id_generator():
+    return str(random.random())
+
