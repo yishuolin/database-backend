@@ -47,7 +47,7 @@ class User(db.Model,UserMixin):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(120))
+    password = db.Column(db.String(120), nullable=False)
     saved = db.Column(db.String(2000))
     def __init__(self, username, password):
         self.username = username
@@ -90,11 +90,11 @@ def init_db():
                     SELECT id, name, artists, duration_ms FROM temp_songs WHERE year >= 1980;')
 
         cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
-                    SELECT genres as genre, energy, danceability, tempo, valence, liveness, acousticness \
+                    SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
                     FROM temp_genres;')
 
         cur.execute('DROP TABLE IF EXISTS temp_songs;')
-        cur.execute('DROP TABLE IF EXISTS temp_genre;')
+        cur.execute('DROP TABLE IF EXISTS temp_genres;')
         db_sqlite.commit()
 
 # Response wrapper
@@ -143,6 +143,7 @@ def init_db():
         cur.execute('DROP TABLE IF EXISTS temp_songs;')
         cur.execute('DROP TABLE IF EXISTS temp_genres;')
         db_sqlite.commit()
+
 
 # For Login Manager
 @login_manager.user_loader
@@ -328,7 +329,7 @@ def add_song_to_database():
             db_sqlite.commit()
 
             return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
-@app.route('/api/search', methods=['GET', 'POST'])
+@app.route('/api/searchArtist', methods=['GET', 'POST'])
 def searchByArtist():
     values = get_request_value(request)
     if values.get('artist') == None:
@@ -337,7 +338,8 @@ def searchByArtist():
         list = []
         c = get_db().cursor()
         if values.get('mode') == 'precise':
-            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'{}\'%' LIMIT 50;".format(values.get('artist'))
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'\'{}\'\'%' LIMIT 50;".format(values.get('artist'))
+            print(query)
         else:
             query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%{}%' LIMIT 50;".format(values.get('artist'))
         for row in c.execute(query):
@@ -345,6 +347,26 @@ def searchByArtist():
             song.update({'songname': row[0], 'artistname': row[1]})
             list.append(song)
         return jsonify(list)
+
+@app.route('/api/searchSong', methods=['GET', 'POST'])
+def searchBySong():
+    values = get_request_value(request)
+    if values.get('song') == None:
+        return error('Empty Field!')
+    else:
+        list = []
+        c = get_db().cursor()
+        if values.get('mode') == 'precise':
+            query = "SELECT songname, artistname FROM song_info WHERE songname LIKE '%\'\'{}\'\'%' LIMIT 50;".format(values.get('song'))
+            print(query)
+        else:
+            query = "SELECT songname, artistname FROM song_info WHERE songname LIKE '%{}%' LIMIT 50;".format(values.get('song'))
+        for row in c.execute(query):
+            song = {}
+            song.update({'songname': row[0], 'artistname': row[1]})
+            list.append(song)
+        return jsonify(list)
+
 
 @app.route('/api/add', methods=['GET', 'POST'])
 def addSong():
