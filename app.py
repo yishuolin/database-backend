@@ -131,10 +131,10 @@ def init_db():
         
         cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
                     SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
-                    FROM temp_songs;')
+                    FROM temp_songs WHERE year > 2010;')
         
         cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
-                    SELECT id, name, artists, duration_ms FROM temp_songs;')
+                    SELECT id, name, artists, duration_ms FROM temp_songs WHERE year > 2010;')
 
         cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
                     SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
@@ -241,13 +241,14 @@ def get_songs():
         genre_standard = cur.execute('SELECT * FROM genre_info WHERE genre = ?;', para).fetchone()
         
         total_dur = 0
+        limit = int(values.get('duration')) * 2
 
         query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
                 , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.danceability - ?) + ABS(t1.valence - ?) \
-                + ABS(t1.tempo - ?) + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
-                song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+                + ABS(t1.tempo - ?) / 250.0 + ABS(t1.liveness - ?) + ABS(t1.acousticness - ?)) as dist FROM song_att as t1,\
+                song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT ?) ORDER BY RANDOM();'
         
-        para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6],)
+        para = (genre_standard[1], genre_standard[2], genre_standard[3], genre_standard[4], genre_standard[5], genre_standard[6], limit,)
 
         song_list = []
         for song_result in cur.execute(query, para).fetchall():
@@ -272,12 +273,13 @@ def customize_attributes():
         energy = float(values.get('energy'))
         liveness = float(values.get('liveness'))
         duration = int(values.get('duration')) * 60000
+        limit = int(values.get('duration')) * 2
 
-        para = (energy, tempo, liveness,)
+        para = (energy, tempo, liveness,limit,)
         cur = get_db().cursor()
         query = 'SELECT songname, artistname, duration FROM (SELECT t1.id as id, t2.songname as songname, t2.artistname as artistname\
-                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) + ABS(t1.liveness - ?)) as dist \
-                    FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT 50) ORDER BY RANDOM();'
+                    , t2.duration as duration, ( ABS(t1.energy - ?) + ABS(t1.tempo - ?) / 250.0 + ABS(t1.liveness - ?)) as dist \
+                    FROM song_att as t1, song_info as t2 WHERE t1.id = t2.id ORDER BY dist ASC LIMIT ?) ORDER BY RANDOM();'
 
         total_duration = 0
         song_list = []
@@ -295,15 +297,13 @@ def customize_attributes():
 @app.route('/api/add_song_to_database', methods=['GET', 'POST'])
 def add_song_to_database():
     values = get_request_value(request)
-    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None:
+    if values.get('songname') == None or values.get('artistname') == None or values.get('atmosphere') == None or values.get('duration') == None:
         return error('Please fill in all the information correctly')
-    elif values.get('atmosphere') == 'other':
-        return success({'msg':'ignore'})
     else : 
         songname = values.get('songname')
         artistname = values.get('artistname')
         atmos = values.get('atmosphere')
-        duration = 10000 # example
+        duration = values.get('duration') # example
 
         genre = genre_selection(atmos)
         if genre == 'Invalid':
