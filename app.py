@@ -362,6 +362,7 @@ def addSong():
         return jsonify(list)
 
 @app.route('/api/save', methods=['GET', 'POST'])
+@login_required
 def saveSong():
     values = get_request_value(request)
     list = []
@@ -387,6 +388,7 @@ def saveSong():
     return jsonify(list)
 
 @app.route('/api/playSaved', methods=['GET', 'POST'])
+@login_required
 def playSavedSong():
     values = get_request_value(request)
     c = get_db().cursor()
