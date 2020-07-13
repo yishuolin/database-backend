@@ -109,41 +109,6 @@ def success(data):
         'data': data
     })
 
-# building song_att, song_info, genre_info tables
-DATABASE = "test.db"
-
-def get_db():
-    db_sqlite = getattr(g, '_database', None)
-    if db_sqlite is None:
-        db_sqlite = g._database = sqlite3.connect(DATABASE)
-    return db_sqlite
-def init_db():
-    with app.app_context():
-        db_sqlite = get_db()
-        with app.open_resource('create_table.sql', mode='r') as f:
-            db_sqlite.cursor().executescript(f.read())
-        cur = db_sqlite.cursor()
-
-        read = pd.read_csv(r'./data/data.csv')
-        read.to_sql('temp_songs', db_sqlite, if_exists='append', index=False)
-        read = pd.read_csv(r'./data/data_by_genres.csv')
-        read.to_sql('temp_genres', db_sqlite, if_exists='append', index=False)
-        
-        cur.execute('INSERT INTO song_att(id, energy, danceability, tempo, valence, liveness, acousticness) \
-                    SELECT id, energy, danceability, tempo, valence, liveness, acousticness \
-                    FROM temp_songs WHERE year > 2010;')
-        
-        cur.execute('INSERT INTO song_info(id, songname, artistname, duration) \
-                    SELECT id, name, artists, duration_ms FROM temp_songs WHERE year > 2010;')
-
-        cur.execute('INSERT INTO genre_info(genre, energy, danceability, tempo, valence, liveness, acousticness)\
-                    SELECT genres, energy, danceability, tempo, valence, liveness, acousticness \
-                    FROM temp_genres;')
-
-        cur.execute('DROP TABLE IF EXISTS temp_songs;')
-        cur.execute('DROP TABLE IF EXISTS temp_genres;')
-        db_sqlite.commit()
-
 
 # For Login Manager
 @login_manager.user_loader
