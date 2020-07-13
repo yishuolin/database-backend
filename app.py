@@ -397,8 +397,8 @@ def playSavedSong():
     for row in c.execute(query):
         saved = row[0]
         break
-
-    return json.dumps(saved)
+    print(saved)
+    return jsonify(json.loads(saved))
 
 
 @app.teardown_appcontext
