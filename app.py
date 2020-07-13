@@ -372,6 +372,7 @@ def saveSong():
         saved_a = row[0]
         break
     saved_a = saved_a.strip(']')
+    saved_a = saved_a.replace("'", "''")
     saved_b = songlist.replace("'", "''")
     saved_b = saved_b.strip('[')
     saved = saved_a + saved_b
@@ -396,7 +397,7 @@ def playSavedSong():
     for row in c.execute(query):
         saved = row[0]
         break
-    saved = saved.replace('\"', '"')
+
     return json.dumps(saved)
 
 
