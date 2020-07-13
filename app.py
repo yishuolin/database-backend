@@ -321,10 +321,10 @@ def searchBySong():
         list = []
         c = get_db().cursor()
         if values.get('mode') == 'precise':
-            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'\'{}\'\'%' LIMIT 50;".format(values.get('song'))
+            query = "SELECT songname, artistname FROM song_info WHERE songname LIKE '%\'\'{}\'\'%' LIMIT 50;".format(values.get('song'))
             print(query)
         else:
-            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%{}%' LIMIT 50;".format(values.get('song'))
+            query = "SELECT songname, artistname FROM song_info WHERE songname LIKE '%{}%' LIMIT 50;".format(values.get('song'))
         for row in c.execute(query):
             song = {}
             song.update({'songname': row[0], 'artistname': row[1]})
