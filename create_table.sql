@@ -44,7 +44,7 @@ CREATE TEMP TABLE temp_genres(
 );
 
 CREATE TABLE song_att(
-    id PRIMARY KEY,
+    id TEXT PRIMARY KEY NOT NULL,
     energy REAL,
     danceability REAL,
     tempo  INTEGER,
@@ -54,7 +54,7 @@ CREATE TABLE song_att(
 );
 
 CREATE TABLE genre_info(
-    genre PRIMARY KEY,
+    genre TEXT PRIMARY KEY NOT NULL,
     energy REAL,
     danceability REAL,
     tempo  INTEGER,
@@ -64,8 +64,8 @@ CREATE TABLE genre_info(
 );
 
 CREATE TABLE song_info(
-    id TEXT PRIMARY KEY, 
-    songname TEXT NOT NULL, 
+    id TEXT PRIMARY KEY NOT NULL,
+    songname TEXT NOT NULL NOT NULL, 
     artistname TEXT, 
     duration INTEGER
 );
