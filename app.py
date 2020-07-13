@@ -313,7 +313,7 @@ def searchByArtist():
         return jsonify(list)
 
 @app.route('/api/searchSong', methods=['GET', 'POST'])
-def searchByArtist():
+def searchBySong():
     values = get_request_value(request)
     if values.get('song') == None:
         return error('Empty Field!')
