@@ -293,7 +293,7 @@ def add_song_to_database():
             db_sqlite.commit()
 
             return success({'msg':'Add new song to database successfully', 'song':songname, 'artist': artistname})
-@app.route('/api/search', methods=['GET', 'POST'])
+@app.route('/api/searchArtist', methods=['GET', 'POST'])
 def searchByArtist():
     values = get_request_value(request)
     if values.get('artist') == None:
@@ -311,6 +311,26 @@ def searchByArtist():
             song.update({'songname': row[0], 'artistname': row[1]})
             list.append(song)
         return jsonify(list)
+
+@app.route('/api/searchSong', methods=['GET', 'POST'])
+def searchByArtist():
+    values = get_request_value(request)
+    if values.get('song') == None:
+        return error('Empty Field!')
+    else:
+        list = []
+        c = get_db().cursor()
+        if values.get('mode') == 'precise':
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%\'\'{}\'\'%' LIMIT 50;".format(values.get('song'))
+            print(query)
+        else:
+            query = "SELECT songname, artistname FROM song_info WHERE artistname LIKE '%{}%' LIMIT 50;".format(values.get('song'))
+        for row in c.execute(query):
+            song = {}
+            song.update({'songname': row[0], 'artistname': row[1]})
+            list.append(song)
+        return jsonify(list)
+
 
 @app.route('/api/add', methods=['GET', 'POST'])
 def addSong():
