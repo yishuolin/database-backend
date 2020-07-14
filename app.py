@@ -372,10 +372,12 @@ def saveSong():
         saved_a = row[0]
         break
     saved_a = saved_a.strip(']')
-    saved_a = saved_a.replace("'", "''")
-    saved_b = songlist.replace("'", "''")
-    saved_b = saved_b.strip('[')
-    saved = saved_a + saved_b
+    saved_b = songlist.strip('[')
+    if saved_a == '[':
+        saved = saved_a + saved_b
+    else:
+        saved = saved_a + ", " + saved_b
+    saved = saved.replace("'", "''")
     query = "UPDATE users SET saved = '{saved}' WHERE username = '{username}';".format(saved = saved, username = username)
     c.execute(query)
     get_db().commit()
