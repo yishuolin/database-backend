@@ -373,9 +373,14 @@ def saveSong():
     for row in c.execute(query):
         saved_a = row[0]
         break
-    saved_b = saved_a.strip(']')
-    saved_b = saved_b + ", '{}'".format(songlist) + "]"
-    query = 'UPDATE users SET saved = "{saved}" WHERE username = "{username}";'.format(saved = saved_b, username = username)
+    saved_a = saved_a.strip(']')
+    saved_b = songlist.strip('[')
+    if saved_a == '[':
+        saved = saved_a + saved_b
+    else:
+        saved = saved_a + ", " + saved_b
+    saved = saved.replace("'", "''")
+    query = "UPDATE users SET saved = '{saved}' WHERE username = '{username}';".format(saved = saved, username = username)
     c.execute(query)
     get_db().commit()
 
@@ -397,8 +402,8 @@ def playSavedSong():
     for row in c.execute(query):
         saved = row[0]
         break
-
-    return saved
+    print(saved)
+    return jsonify(json.loads(saved))
 
 
 @app.teardown_appcontext
